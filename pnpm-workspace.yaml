@@ -1,0 +1,10 @@
+packages:
+  - .
+
+pmOnFail: ignore
+nodeLinker: hoisted
+enableGlobalVirtualStore: false
+verifyDepsBeforeRun: false
+storeDir: .pnpm-store
+confirmModulesPurge: false
+ignoreScripts: true

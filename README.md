@@ -17,6 +17,11 @@ Open http://localhost:8080/ in your browser.
 
 #### Running in production
 
+Install the current pnpm release with `npm install -g pnpm`, then install the
+dependencies with `pnpm install`. The repository disables pnpm's automatic
+package-manager download so Windows does not need to create a version-switching
+symbolic link.
+
 Copy `config.example.json` to `config.json`, configure the server port and the
 optional upstream HTTP proxy, then run:
 
