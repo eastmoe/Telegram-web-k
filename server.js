@@ -34,7 +34,7 @@ function createApp(config) {
     res.json({
       ok: true,
       telegramRelay: true,
-      upstreamHttpProxy: !!config.telegram.httpProxy
+      upstreamHttpProxy: config.telegram.proxyEnabled
     });
   });
 
@@ -77,7 +77,7 @@ function start() {
     const protocol = config.server.https.enabled ? 'https' : 'http';
     console.log(`Telegram Web K listening on ${protocol}://${config.server.host}:${config.server.port}`);
     console.log('Static files:', publicDirectory);
-    console.log('Telegram upstream HTTP proxy:', config.telegram.httpProxy ? 'configured' : 'not configured (direct server egress)');
+    console.log('Telegram upstream HTTP proxy:', config.telegram.proxyEnabled ? 'enabled' : 'disabled (direct server egress)');
   });
 
   return server;

@@ -42,7 +42,7 @@ Example `config.json`:
 {
   "server": {
     "host": "0.0.0.0",
-    "port": 80,
+    "port": 8080,
     "publicDirectory": "public",
     "https": {
       "enabled": false,
@@ -51,6 +51,7 @@ Example `config.json`:
     }
   },
   "telegram": {
+    "proxyEnabled": true,
     "httpProxy": "http://127.0.0.1:7890",
     "requestTimeoutMs": 30000,
     "maxRequestBytes": 67108864,
@@ -59,11 +60,16 @@ Example `config.json`:
 }
 ```
 
-`telegram.httpProxy` accepts `http://` and `https://` proxy URLs, including
-credentials in standard URL form. If it is empty, Telegram traffic still goes
-through this server, but the server connects to Telegram directly. The
-`TELEGRAM_HTTP_PROXY`, `TWEB_CONFIG`, `HOST` and `PORT` environment variables
-can override the corresponding deployment values.
+`telegram.proxyEnabled` controls whether the server uses the configured
+upstream proxy. `telegram.httpProxy` accepts `http://` and `https://` URLs,
+including credentials in standard URL form. When the switch is disabled,
+Telegram traffic still goes through this server, but the server connects to
+Telegram directly. Environment variables can override these values; Docker
+deployments use the variables documented below.
+
+For local testing, open `http://localhost:8080/`. The default server does not
+redirect HTTP to HTTPS. HTTPS is used only when `server.https.enabled` is set to
+`true` and certificate files are configured.
 
 The bundled default interface language is Simplified Chinese. Its local WebK
 snapshot comes from Telegram's translation platform and can be refreshed with
@@ -78,8 +84,30 @@ same MTProto relay.
 * Open http://localhost:8080/ in your browser. 
 
 #### Production:
-* Copy `config.example.json` to `config.json` and edit the proxy URL.
-* Run `docker-compose up tweb.production -d` to build and start the WebK server and Telegram relay.
+The production service is configured directly in `docker-compose.yaml`; it no
+longer requires a `config.json` bind mount. The available settings are:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TELEGRAM_PROXY_ENABLED` | `false` | Enable or disable the upstream HTTP proxy. |
+| `TELEGRAM_HTTP_PROXY` | `http://host.docker.internal:7890` | Proxy URL, with optional URL credentials. |
+| `TELEGRAM_REQUEST_TIMEOUT_MS` | `30000` | Telegram upstream connect/request timeout. |
+| `TELEGRAM_MAX_REQUEST_BYTES` | `67108864` | Maximum relayed HTTP request size. |
+| `TELEGRAM_MAX_BUFFERED_WEBSOCKET_BYTES` | `8388608` | Maximum WebSocket data buffered while connecting upstream. |
+
+You can edit the defaults in `docker-compose.yaml`, or provide deployment
+values through a Compose `.env` file:
+
+```dotenv
+TELEGRAM_PROXY_ENABLED=true
+TELEGRAM_HTTP_PROXY=http://host.docker.internal:7890
+TELEGRAM_REQUEST_TIMEOUT_MS=30000
+```
+
+When the proxy runs on the Docker host, use `host.docker.internal` rather than
+`127.0.0.1`, because the latter refers to the container itself.
+
+* Run `docker compose up tweb.production -d` to build and start the WebK server and Telegram relay.
 * Open http://localhost:80/ in your browser.
 
 You can use `docker build -f ./.docker/Dockerfile_production -t {dockerhub-username}/{imageName}:{latest} .` to build your production ready image.

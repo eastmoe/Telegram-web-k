@@ -57,7 +57,7 @@ function createAgent(httpProxy) {
 }
 
 function createTelegramRelay(config) {
-  const agent = createAgent(config.httpProxy);
+  const agent = createAgent(config.proxyEnabled === false ? '' : config.httpProxy);
   const rawBody = express.raw({
     type: () => true,
     limit: config.maxRequestBytes

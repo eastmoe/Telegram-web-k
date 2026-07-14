@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const {validateConfig} = require('./config');
+const {parseBoolean, validateConfig} = require('./config');
 const {
   getTelegramHttpTarget,
   getTelegramWebSocketTarget,
@@ -45,6 +45,7 @@ test('configuration accepts only HTTP proxy URLs', () => {
   const valid = {
     server: {port: 8080},
     telegram: {
+      proxyEnabled: true,
       httpProxy: 'http://127.0.0.1:7890',
       requestTimeoutMs: 30000,
       maxRequestBytes: 1024,
@@ -56,4 +57,15 @@ test('configuration accepts only HTTP proxy URLs', () => {
     ...valid,
     telegram: {...valid.telegram, httpProxy: 'socks5://127.0.0.1:1080'}
   }), /must use http:\/\/ or https:\/\//);
+  assert.throws(() => validateConfig({
+    ...valid,
+    telegram: {...valid.telegram, httpProxy: ''}
+  }), /required when the proxy is enabled/);
+});
+
+test('proxy environment switch accepts common boolean values', () => {
+  assert.equal(parseBoolean('true', 'TEST_PROXY'), true);
+  assert.equal(parseBoolean('1', 'TEST_PROXY'), true);
+  assert.equal(parseBoolean('off', 'TEST_PROXY'), false);
+  assert.throws(() => parseBoolean('sometimes', 'TEST_PROXY'), /must be true or false/);
 });

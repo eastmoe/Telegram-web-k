@@ -27,5 +27,17 @@ services:
       dockerfile: .docker/Dockerfile_production
     ports:
       - 80:80
-    volumes:
-      - "./config.json:/app/config.json:ro"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "80"
+      # Set to "true" to send every Telegram HTTP/WebSocket relay connection
+      # through TELEGRAM_HTTP_PROXY. When disabled, the address is ignored.
+      TELEGRAM_PROXY_ENABLED: "${TELEGRAM_PROXY_ENABLED:-false}"
+      # 127.0.0.1 inside the container is not the Docker host. For a proxy
+      # running on the host machine, use host.docker.internal.
+      TELEGRAM_HTTP_PROXY: "${TELEGRAM_HTTP_PROXY:-http://host.docker.internal:7890}"
+      TELEGRAM_REQUEST_TIMEOUT_MS: "${TELEGRAM_REQUEST_TIMEOUT_MS:-30000}"
+      TELEGRAM_MAX_REQUEST_BYTES: "${TELEGRAM_MAX_REQUEST_BYTES:-67108864}"
+      TELEGRAM_MAX_BUFFERED_WEBSOCKET_BYTES: "${TELEGRAM_MAX_BUFFERED_WEBSOCKET_BYTES:-8388608}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

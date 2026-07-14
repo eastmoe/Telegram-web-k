@@ -1,7 +1,7 @@
 {
   "server": {
     "host": "0.0.0.0",
-    "port": 80,
+    "port": 8080,
     "publicDirectory": "public",
     "https": {
       "enabled": false,
@@ -10,6 +10,7 @@
     }
   },
   "telegram": {
+    "proxyEnabled": true,
     "httpProxy": "http://127.0.0.1:7890",
     "requestTimeoutMs": 30000,
     "maxRequestBytes": 67108864,
