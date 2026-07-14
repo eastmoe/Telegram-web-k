@@ -34,11 +34,10 @@ services:
       SERVER_HTTPS_ENABLED: "${SERVER_HTTPS_ENABLED:-false}"
       SERVER_HTTPS_KEY_FILE: "${SERVER_HTTPS_KEY_FILE:-/app/certs/server-key.pem}"
       SERVER_HTTPS_CERT_FILE: "${SERVER_HTTPS_CERT_FILE:-/app/certs/server-cert.pem}"
-      # Generate the hash with:
-      # docker run --rm ghcr.io/eastmoe/telegram-web-k:v0.0.1 node server/hashPassword.js your-password
       HTTP_AUTH_ENABLED: "${HTTP_AUTH_ENABLED:-false}"
       HTTP_AUTH_USERNAME: "${HTTP_AUTH_USERNAME:-admin}"
-      HTTP_AUTH_PASSWORD_HASH: "${HTTP_AUTH_PASSWORD_HASH:-}"
+      # The server converts this password to a scrypt hash during startup.
+      HTTP_AUTH_PASSWORD: "${HTTP_AUTH_PASSWORD:-}"
       # Set to "true" to send every Telegram HTTP/WebSocket relay connection
       # through TELEGRAM_HTTP_PROXY. When disabled, the address is ignored.
       TELEGRAM_PROXY_ENABLED: "${TELEGRAM_PROXY_ENABLED:-false}"

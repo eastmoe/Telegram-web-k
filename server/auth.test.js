@@ -1,10 +1,11 @@
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const net = require('node:net');
+const path = require('node:path');
 const test = require('node:test');
 
 const {createHttpAuth, hashPassword, parsePasswordHash, verifyPassword} = require('./auth');
-const {DEFAULT_CONFIG, mergeConfig, validateConfig} = require('./config');
+const {DEFAULT_CONFIG, loadConfig, mergeConfig, validateConfig} = require('./config');
 const {createApp} = require('../server');
 
 const TEST_PASSWORD = 'correct horse battery staple';
@@ -62,6 +63,28 @@ test('disabled authentication allows HTTP and WebSocket requests', () => {
   const request = {headers: {}};
   assert.equal(auth.authenticateRequest(request).authenticated, true);
   assert.equal(auth.authorizeUpgrade(request), true);
+});
+
+test('Docker plaintext password is hashed and removed from the process environment', () => {
+  const environmentNames = ['HTTP_AUTH_ENABLED', 'HTTP_AUTH_USERNAME', 'HTTP_AUTH_PASSWORD', 'HTTP_AUTH_PASSWORD_HASH'];
+  const previous = Object.fromEntries(environmentNames.map((name) => [name, process.env[name]]));
+  try {
+    process.env.HTTP_AUTH_ENABLED = 'true';
+    process.env.HTTP_AUTH_USERNAME = 'docker-admin';
+    process.env.HTTP_AUTH_PASSWORD = TEST_PASSWORD;
+    delete process.env.HTTP_AUTH_PASSWORD_HASH;
+
+    const config = loadConfig(path.join(__dirname, 'missing-auth-test-config.json'));
+    assert.equal(config.auth.enabled, true);
+    assert.equal(config.auth.username, 'docker-admin');
+    assert.equal(verifyPassword(TEST_PASSWORD, config.auth.passwordHash), true);
+    assert.equal(process.env.HTTP_AUTH_PASSWORD, undefined);
+  } finally {
+    for(const name of environmentNames) {
+      if(previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+    }
+  }
 });
 
 test('authentication protects pages and APIs and restores a local session', async() => {

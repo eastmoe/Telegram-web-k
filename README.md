@@ -29,7 +29,7 @@ services:
       PORT: 8080
       HTTP_AUTH_ENABLED: "${HTTP_AUTH_ENABLED:-false}"
       HTTP_AUTH_USERNAME: "${HTTP_AUTH_USERNAME:-admin}"
-      HTTP_AUTH_PASSWORD_HASH: "${HTTP_AUTH_PASSWORD_HASH:-}"
+      HTTP_AUTH_PASSWORD: "${HTTP_AUTH_PASSWORD:-}"
       TELEGRAM_PROXY_ENABLED: "${TELEGRAM_PROXY_ENABLED:-false}"
       TELEGRAM_HTTP_PROXY: "${TELEGRAM_HTTP_PROXY:-http://host.docker.internal:7890}"
     extra_hosts:
@@ -48,18 +48,12 @@ docker run -d --name telegram-web-k --restart unless-stopped -p 8080:8080 ghcr.i
 
 认证开关会同时保护 Web 界面、健康检查、Telegram HTTP API 和 WebSocket 中继。浏览器登录成功后，会在 localStorage 中保存会话令牌，并通过安全 Cookie 访问页面和 API。标准 HTTP Basic Auth 也可用于脚本和监控程序。
 
-先生成密码哈希：
-
-```bash
-docker run --rm ghcr.io/eastmoe/telegram-web-k node server/hashPassword.js change-this-password
-```
-
-将输出写入 Compose `.env` 文件：
+在 Compose `.env` 文件中直接填写用户名和密码。容器启动时会生成 scrypt 哈希，并从 Node 进程环境中清除明文密码：
 
 ```dotenv
 HTTP_AUTH_ENABLED=true
 HTTP_AUTH_USERNAME=admin
-HTTP_AUTH_PASSWORD_HASH=scrypt:生成的盐值:生成的密码摘要
+HTTP_AUTH_PASSWORD=change-this-password
 ```
 
 再次运行 `docker compose up -d` 即可应用配置。访问 Web 界面时会显示登录页，访问 `/auth/logout` 可以清除本地登录状态。
@@ -113,7 +107,7 @@ SERVER_HTTPS_CERT_FILE=/app/certs/server-cert.pem
 | `PORT` | `8080` | 容器监听端口 |
 | `HTTP_AUTH_ENABLED` | `false` | 启用访问认证 |
 | `HTTP_AUTH_USERNAME` | `admin` | 登录用户名 |
-| `HTTP_AUTH_PASSWORD_HASH` | 空 | scrypt 密码哈希 |
+| `HTTP_AUTH_PASSWORD` | 空 | 登录密码，启动时转换为 scrypt 哈希 |
 | `TELEGRAM_PROXY_ENABLED` | `false` | 启用 Telegram 上游代理 |
 | `TELEGRAM_HTTP_PROXY` | 空 | HTTP 或 HTTPS 代理地址 |
 | `SERVER_HTTPS_ENABLED` | `false` | 启用 Node HTTPS 服务 |

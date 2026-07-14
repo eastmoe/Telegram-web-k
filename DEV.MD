@@ -80,7 +80,7 @@ pnpm serve
 | `SERVER_HTTPS_CERT_FILE` | `/app/certs/server-cert.pem` | 设置容器内的证书或完整证书链路径。 |
 | `HTTP_AUTH_ENABLED` | `false` | 控制 Web 界面、API 和 WebSocket 的访问认证。 |
 | `HTTP_AUTH_USERNAME` | `admin` | 设置访问认证用户名。 |
-| `HTTP_AUTH_PASSWORD_HASH` | 空 | 设置 scrypt 密码哈希。 |
+| `HTTP_AUTH_PASSWORD` | 空 | 设置 Docker 登录密码，容器启动时会生成 scrypt 哈希。 |
 | `TELEGRAM_PROXY_ENABLED` | `false` | 控制服务器使用上游 HTTP 代理的方式。 |
 | `TELEGRAM_HTTP_PROXY` | `http://host.docker.internal:7890` | 设置代理地址，可包含 URL 身份凭据。 |
 | `TELEGRAM_REQUEST_TIMEOUT_MS` | `30000` | 设置 Telegram 上游连接和请求的超时时间。 |
@@ -97,7 +97,7 @@ SERVER_HTTPS_KEY_FILE=/app/certs/privkey.pem
 SERVER_HTTPS_CERT_FILE=/app/certs/fullchain.pem
 HTTP_AUTH_ENABLED=true
 HTTP_AUTH_USERNAME=admin
-HTTP_AUTH_PASSWORD_HASH=scrypt:生成的盐值:生成的密码摘要
+HTTP_AUTH_PASSWORD=change-this-password
 TELEGRAM_PROXY_ENABLED=true
 TELEGRAM_HTTP_PROXY=http://host.docker.internal:7890
 TELEGRAM_REQUEST_TIMEOUT_MS=30000

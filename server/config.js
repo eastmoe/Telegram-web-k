@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const {parsePasswordHash} = require('./auth');
+const {hashPassword, parsePasswordHash} = require('./auth');
 
 const DEFAULT_CONFIG = {
   server: {
@@ -146,7 +146,10 @@ function loadConfig(configPath = process.env.TWEB_CONFIG || path.join(process.cw
   if(process.env.HTTP_AUTH_USERNAME !== undefined) {
     config.auth.username = process.env.HTTP_AUTH_USERNAME;
   }
-  if(process.env.HTTP_AUTH_PASSWORD_HASH !== undefined) {
+  if(process.env.HTTP_AUTH_PASSWORD) {
+    config.auth.passwordHash = hashPassword(process.env.HTTP_AUTH_PASSWORD);
+    delete process.env.HTTP_AUTH_PASSWORD;
+  } else if(process.env.HTTP_AUTH_PASSWORD_HASH !== undefined) {
     config.auth.passwordHash = process.env.HTTP_AUTH_PASSWORD_HASH;
   }
 
