@@ -1,0 +1,76 @@
+name: Sync conflict-free upstream changes
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Merge TelegramOrg/Telegram-web-k
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      LOCAL_BRANCH: ${{ github.event.repository.default_branch }}
+      UPSTREAM_URL: https://github.com/TelegramOrg/Telegram-web-k.git
+
+    steps:
+      - name: Check out default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Fetch upstream default branch
+        id: upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git remote remove upstream 2>/dev/null || true
+          git remote add upstream "$UPSTREAM_URL"
+
+          upstream_ref="$(git ls-remote --symref upstream HEAD | awk '$1 == "ref:" { print $2; exit }')"
+          if [[ -z "$upstream_ref" || "$upstream_ref" != refs/heads/* ]]; then
+            echo "Could not determine the upstream default branch." >&2
+            exit 1
+          fi
+
+          upstream_branch="${upstream_ref#refs/heads/}"
+          git fetch --no-tags upstream "+refs/heads/${upstream_branch}:refs/remotes/upstream/${upstream_branch}"
+          echo "branch=$upstream_branch" >> "$GITHUB_OUTPUT"
+
+      - name: Merge and push conflict-free changes
+        shell: bash
+        env:
+          UPSTREAM_BRANCH: ${{ steps.upstream.outputs.branch }}
+        run: |
+          set -euo pipefail
+
+          upstream_commit="upstream/${UPSTREAM_BRANCH}"
+          if git merge-base --is-ancestor "$upstream_commit" HEAD; then
+            echo "No new upstream changes." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if ! git merge --no-ff --no-commit "$upstream_commit"; then
+            git merge --abort || true
+            echo "Upstream changes conflict with \`${LOCAL_BRANCH}\`; nothing was pushed." >> "$GITHUB_STEP_SUMMARY"
+            echo "Upstream merge has conflicts; the merge was aborted." >&2
+            exit 1
+          fi
+
+          git commit -m "Merge upstream TelegramOrg/Telegram-web-k"
+          git push origin "HEAD:${LOCAL_BRANCH}"
+
+          echo "Merged \`${upstream_commit}\` into \`${LOCAL_BRANCH}\` and pushed the result." >> "$GITHUB_STEP_SUMMARY"
