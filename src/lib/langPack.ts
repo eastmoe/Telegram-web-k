@@ -17,6 +17,7 @@ import {createSignal} from 'solid-js';
 import commonStateStorage from '@lib/commonStateStorage';
 import Icon from '@components/icon';
 import currencyStarIcon from '@components/currencyStarIcon';
+import langZhHans from '@/locales/zh-hans.json';
 
 export const langPack: {[actionType: string]: LangPackKey} = {
   'messageActionChatCreate': 'ActionCreateGroup',
@@ -175,7 +176,7 @@ namespace I18n {
       import('../countries')
     ]).then(([lang, langSign, countries]) => {
       const strings: LangPackString[] = [];
-      formatLocalStrings(lang.default, strings);
+      formatLocalStrings({...lang.default, ...langZhHans}, strings);
       formatLocalStrings(langSign.default, strings);
 
       const langPack: LangPackDifference = {
@@ -191,12 +192,11 @@ namespace I18n {
     });
   }
 
-  export function loadLangPack(langCode: string, web?: boolean, ignoreCache?: boolean) {
-    web = true;
+  export function loadLangPack(langCode: string, _web?: boolean, ignoreCache?: boolean) {
     const managers = rootScope.managers;
     return Promise.all([
-      managers.appLangPackManager.getLangPack(langCode, web ? 'web' : App.langPack, ignoreCache),
-      !web && managers.appLangPackManager.getLangPack(langCode, 'android', ignoreCache),
+      managers.appLangPackManager.getLangPack(langCode, App.langPack, ignoreCache),
+      undefined,
       import('../lang'),
       import('../langSign'),
       managers.appLangPackManager.getCountriesList(langCode, ignoreCache),

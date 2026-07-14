@@ -17,7 +17,53 @@ Open http://localhost:8080/ in your browser.
 
 #### Running in production
 
-Run `node build` to build the minimized production version of the app. Copy `public` folder contents to your web server.
+Copy `config.example.json` to `config.json`, configure the server port and the
+optional upstream HTTP proxy, then run:
+
+```lang=bash
+pnpm serve
+```
+
+The production server is required: the browser no longer connects to Telegram
+MTProto endpoints directly. Login, messages, language packs, uploads and
+downloads all use same-origin `/api/telegram/http/*` or
+`/api/telegram/ws/*` routes. The server validates the DC and connection type,
+then relays the opaque encrypted MTProto payload to Telegram. It cannot be used
+as an arbitrary forward proxy.
+
+Example `config.json`:
+
+```json
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 80,
+    "publicDirectory": "public",
+    "https": {
+      "enabled": false,
+      "keyFile": "certs/server-key.pem",
+      "certFile": "certs/server-cert.pem"
+    }
+  },
+  "telegram": {
+    "httpProxy": "http://127.0.0.1:7890",
+    "requestTimeoutMs": 30000,
+    "maxRequestBytes": 67108864,
+    "maxBufferedWebSocketBytes": 8388608
+  }
+}
+```
+
+`telegram.httpProxy` accepts `http://` and `https://` proxy URLs, including
+credentials in standard URL form. If it is empty, Telegram traffic still goes
+through this server, but the server connects to Telegram directly. The
+`TELEGRAM_HTTP_PROXY`, `TWEB_CONFIG`, `HOST` and `PORT` environment variables
+can override the corresponding deployment values.
+
+The bundled default interface language is Simplified Chinese. Its local WebK
+snapshot comes from Telegram's translation platform and can be refreshed with
+`pnpm fetch-lang-zh-hans`; newer language-pack updates are fetched through the
+same MTProto relay.
 
 ### Running in docker
 
@@ -27,7 +73,8 @@ Run `node build` to build the minimized production version of the app. Copy `pub
 * Open http://localhost:8080/ in your browser. 
 
 #### Production:
-* Run `docker-compose up tweb.production -d` nginx image and container to serve the build
+* Copy `config.example.json` to `config.json` and edit the proxy URL.
+* Run `docker-compose up tweb.production -d` to build and start the WebK server and Telegram relay.
 * Open http://localhost:80/ in your browser.
 
 You can use `docker build -f ./.docker/Dockerfile_production -t {dockerhub-username}/{imageName}:{latest} .` to build your production ready image.

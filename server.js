@@ -1,38 +1,90 @@
 const compression = require('compression');
 const express = require('express');
-const https = require('https');
-const http = require('http');
 const fs = require('fs');
+const http = require('http');
+const https = require('https');
+const path = require('path');
 
-const app = express();
+const {loadConfig} = require('./server/config');
+const {createTelegramRelay} = require('./server/telegramRelay');
 
-const thirdTour = process.argv[2] == 3;
-const forcePort = process.argv[3];
-const useHttp = process.argv[4] !== 'https';
+function resolvePublicDirectory(config) {
+  const configured = path.resolve(__dirname, config.server.publicDirectory);
+  const dist = path.resolve(__dirname, 'dist');
 
-const publicFolderName = thirdTour ? 'public3' : 'public';
-const port = forcePort ? +forcePort : (thirdTour ? 8443 : 80);
+  if(config.server.publicDirectory === 'public' && fs.existsSync(path.join(dist, 'index.html'))) {
+    return dist;
+  }
 
-app.set('etag', false);
-app.use((req, res, next) => {
-  res.set('Cache-Control', 'no-store');
-  next();
-});
-app.use(compression());
-app.use(express.static(publicFolderName));
-
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + `/${publicFolderName}/index.html`);
-});
-
-const server = useHttp ? http : https;
-
-let options = {};
-if(!useHttp) {
-  options.key = fs.readFileSync(__dirname + '/certs/server-key.pem');
-  options.cert = fs.readFileSync(__dirname + '/certs/server-cert.pem');
+  return configured;
 }
 
-server.createServer(options, app).listen(port, () => {
-  console.log('Listening port:', port, 'folder:', publicFolderName);
-});
+function createApp(config) {
+  const app = express();
+  const publicDirectory = resolvePublicDirectory(config);
+
+  app.disable('x-powered-by');
+  app.set('etag', false);
+  app.use((req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
+
+  app.get('/api/health', (req, res) => {
+    res.json({
+      ok: true,
+      telegramRelay: true,
+      upstreamHttpProxy: !!config.telegram.httpProxy
+    });
+  });
+
+  const relay = createTelegramRelay(config.telegram);
+  relay.attachHttp(app);
+
+  app.use(compression());
+  app.use(express.static(publicDirectory));
+  app.get(/.*/, (req, res, next) => {
+    const indexPath = path.join(publicDirectory, 'index.html');
+    if(!fs.existsSync(indexPath)) {
+      next();
+      return;
+    }
+
+    res.sendFile(indexPath);
+  });
+
+  return {app, relay, publicDirectory};
+}
+
+function createServer(config, app) {
+  if(!config.server.https.enabled) {
+    return http.createServer(app);
+  }
+
+  return https.createServer({
+    key: fs.readFileSync(path.resolve(__dirname, config.server.https.keyFile)),
+    cert: fs.readFileSync(path.resolve(__dirname, config.server.https.certFile))
+  }, app);
+}
+
+function start() {
+  const config = loadConfig();
+  const {app, relay, publicDirectory} = createApp(config);
+  const server = createServer(config, app);
+  relay.attachWebSocket(server);
+
+  server.listen(config.server.port, config.server.host, () => {
+    const protocol = config.server.https.enabled ? 'https' : 'http';
+    console.log(`Telegram Web K listening on ${protocol}://${config.server.host}:${config.server.port}`);
+    console.log('Static files:', publicDirectory);
+    console.log('Telegram upstream HTTP proxy:', config.telegram.httpProxy ? 'configured' : 'not configured (direct server egress)');
+  });
+
+  return server;
+}
+
+if(require.main === module) {
+  start();
+}
+
+module.exports = {createApp, createServer, resolvePublicDirectory, start};

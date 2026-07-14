@@ -16,6 +16,7 @@ ssh.json
 archive.zip
 .idea
 .env.local
+config.json
 src/langPackLocalVersion.ts
 /.ai
 tmp

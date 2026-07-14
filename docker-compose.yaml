@@ -27,3 +27,5 @@ services:
       dockerfile: .docker/Dockerfile_production
     ports:
       - 80:80
+    volumes:
+      - "./config.json:/app/config.json:ro"

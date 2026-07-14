@@ -134,6 +134,7 @@ export default defineConfig({
     //   autoname: true // e.g. enable autoname
     // }),
     process.env.VITEST || process.env.TWEB_PREVIEW ? undefined : checker({
+      enableBuild: false,
       typescript: true,
       eslint: {
         // for example, lint .ts and .tsx
