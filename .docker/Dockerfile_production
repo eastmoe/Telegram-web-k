@@ -18,6 +18,7 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --prod --frozen-lockfile --ignore-scripts
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/public ./public
 COPY server ./server
 COPY server.js config.example.json ./
 

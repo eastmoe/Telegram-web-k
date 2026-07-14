@@ -9,20 +9,25 @@ const {createHttpAuth} = require('./server/auth');
 const {loadConfig} = require('./server/config');
 const {createTelegramRelay} = require('./server/telegramRelay');
 
-function resolvePublicDirectory(config) {
-  const configured = path.resolve(__dirname, config.server.publicDirectory);
-  const dist = path.resolve(__dirname, 'dist');
+function resolvePublicDirectories(config, rootDirectory = __dirname) {
+  const configured = path.resolve(rootDirectory, config.server.publicDirectory);
+  const dist = path.resolve(rootDirectory, 'dist');
 
   if(config.server.publicDirectory === 'public' && fs.existsSync(path.join(dist, 'index.html'))) {
-    return dist;
+    return [dist, configured];
   }
 
-  return configured;
+  return [configured];
 }
 
-function createApp(config) {
+function resolvePublicDirectory(config, rootDirectory = __dirname) {
+  return resolvePublicDirectories(config, rootDirectory)[0];
+}
+
+function createApp(config, {rootDirectory = __dirname} = {}) {
   const app = express();
-  const publicDirectory = resolvePublicDirectory(config);
+  const publicDirectories = resolvePublicDirectories(config, rootDirectory);
+  const publicDirectory = publicDirectories[0];
   const auth = createHttpAuth(config.auth, {secureCookies: config.server.https.enabled});
 
   app.disable('x-powered-by');
@@ -49,7 +54,9 @@ function createApp(config) {
   relay.attachHttp(app);
 
   app.use(compression());
-  app.use(express.static(publicDirectory));
+  for(const directory of publicDirectories) {
+    app.use(express.static(directory));
+  }
   app.get(/.*/, (req, res, next) => {
     const indexPath = path.join(publicDirectory, 'index.html');
     if(!fs.existsSync(indexPath)) {
@@ -60,7 +67,7 @@ function createApp(config) {
     res.sendFile(indexPath);
   });
 
-  return {app, auth, relay, publicDirectory};
+  return {app, auth, relay, publicDirectory, publicDirectories};
 }
 
 function createServer(config, app) {
@@ -76,14 +83,14 @@ function createServer(config, app) {
 
 function start() {
   const config = loadConfig();
-  const {app, auth, relay, publicDirectory} = createApp(config);
+  const {app, auth, relay, publicDirectories} = createApp(config);
   const server = createServer(config, app);
   relay.attachWebSocket(server, auth.authorizeUpgrade);
 
   server.listen(config.server.port, config.server.host, () => {
     const protocol = config.server.https.enabled ? 'https' : 'http';
     console.log(`Telegram Web K listening on ${protocol}://${config.server.host}:${config.server.port}`);
-    console.log('Static files:', publicDirectory);
+    console.log('Static files:', publicDirectories.join(', '));
     console.log('HTTP authentication:', config.auth.enabled ? 'enabled' : 'disabled');
     console.log('Telegram upstream HTTP proxy:', config.telegram.proxyEnabled ? 'enabled' : 'disabled (direct server egress)');
   });
@@ -95,4 +102,4 @@ if(require.main === module) {
   start();
 }
 
-module.exports = {createApp, createServer, resolvePublicDirectory, start};
+module.exports = {createApp, createServer, resolvePublicDirectories, resolvePublicDirectory, start};
