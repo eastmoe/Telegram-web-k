@@ -19,7 +19,6 @@ archive.zip
 .env.local
 config.json
 .pnpm-store/
-src/langPackLocalVersion.ts
 /.ai
 tmp
 
