@@ -9,6 +9,11 @@
       "certFile": "certs/server-cert.pem"
     }
   },
+  "auth": {
+    "enabled": true,
+    "username": "admin",
+    "passwordHash": "scrypt:replace-with-salt:replace-with-password-hash"
+  },
   "telegram": {
     "proxyEnabled": true,
     "httpProxy": "http://127.0.0.1:7890",

@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const {parsePasswordHash} = require('./auth');
+
 const DEFAULT_CONFIG = {
   server: {
     host: '0.0.0.0',
@@ -11,6 +13,11 @@ const DEFAULT_CONFIG = {
       keyFile: 'certs/server-key.pem',
       certFile: 'certs/server-cert.pem'
     }
+  },
+  auth: {
+    enabled: false,
+    username: 'admin',
+    passwordHash: ''
   },
   telegram: {
     proxyEnabled: false,
@@ -57,6 +64,19 @@ function validateConfig(config) {
 
   if(config.server.https.enabled && (!config.server.https.keyFile || !config.server.https.certFile)) {
     throw new Error('config.server.https.keyFile and certFile are required when HTTPS is enabled');
+  }
+
+  config.auth = mergeConfig(DEFAULT_CONFIG.auth, config.auth);
+  if(typeof(config.auth.enabled) !== 'boolean') {
+    throw new Error('config.auth.enabled must be a boolean');
+  }
+  if(config.auth.enabled) {
+    if(typeof(config.auth.username) !== 'string' || !config.auth.username.trim() || config.auth.username.includes(':')) {
+      throw new Error('config.auth.username must be a non-empty string without colons');
+    }
+    if(!parsePasswordHash(config.auth.passwordHash)) {
+      throw new Error('config.auth.passwordHash must be a valid scrypt password hash');
+    }
   }
 
   if(typeof(config.telegram.proxyEnabled) !== 'boolean') {
@@ -119,6 +139,15 @@ function loadConfig(configPath = process.env.TWEB_CONFIG || path.join(process.cw
   }
   if(process.env.SERVER_HTTPS_CERT_FILE !== undefined) {
     config.server.https.certFile = process.env.SERVER_HTTPS_CERT_FILE;
+  }
+  if(process.env.HTTP_AUTH_ENABLED !== undefined) {
+    config.auth.enabled = parseBoolean(process.env.HTTP_AUTH_ENABLED, 'HTTP_AUTH_ENABLED');
+  }
+  if(process.env.HTTP_AUTH_USERNAME !== undefined) {
+    config.auth.username = process.env.HTTP_AUTH_USERNAME;
+  }
+  if(process.env.HTTP_AUTH_PASSWORD_HASH !== undefined) {
+    config.auth.passwordHash = process.env.HTTP_AUTH_PASSWORD_HASH;
   }
 
   return validateConfig(config);

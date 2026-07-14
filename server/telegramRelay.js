@@ -101,13 +101,17 @@ function createTelegramRelay(config) {
     });
   }
 
-  function attachWebSocket(server) {
+  function attachWebSocket(server, authorize = () => true) {
     const websocketServer = new WebSocketServer({noServer: true, perMessageDeflate: false});
 
     server.on('upgrade', (req, socket, head) => {
       const relayRequest = parseRelayRequest(req.url, WEBSOCKET_ROUTE);
       if(!relayRequest) {
         socket.destroy();
+        return;
+      }
+      if(!authorize(req)) {
+        socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
         return;
       }
 

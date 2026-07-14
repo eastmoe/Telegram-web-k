@@ -13,7 +13,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: publish-ghcr-${{ inputs.tag }}
+  group: publish-ghcr-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
@@ -60,7 +60,9 @@ jobs:
           context: .
           file: .docker/Dockerfile_production
           push: true
-          tags: ${{ steps.image.outputs.name }}:${{ steps.image.outputs.tag }}
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.tag }}
+            ${{ steps.image.outputs.name }}:latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -70,4 +72,6 @@ jobs:
 
       - name: Write job summary
         shell: bash
-        run: echo "Published \`${{ steps.image.outputs.name }}:${{ steps.image.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "Published \`${{ steps.image.outputs.name }}:${{ steps.image.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published \`${{ steps.image.outputs.name }}:latest\`" >> "$GITHUB_STEP_SUMMARY"

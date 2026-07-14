@@ -5,6 +5,7 @@ const http = require('http');
 const https = require('https');
 const path = require('path');
 
+const {createHttpAuth} = require('./server/auth');
 const {loadConfig} = require('./server/config');
 const {createTelegramRelay} = require('./server/telegramRelay');
 
@@ -22,6 +23,7 @@ function resolvePublicDirectory(config) {
 function createApp(config) {
   const app = express();
   const publicDirectory = resolvePublicDirectory(config);
+  const auth = createHttpAuth(config.auth, {secureCookies: config.server.https.enabled});
 
   app.disable('x-powered-by');
   app.set('etag', false);
@@ -30,9 +32,13 @@ function createApp(config) {
     next();
   });
 
+  auth.attachRoutes(app);
+  app.use(auth.middleware);
+
   app.get('/api/health', (req, res) => {
     res.json({
       ok: true,
+      httpAuth: config.auth.enabled,
       telegramRelay: true,
       upstreamHttpProxy: config.telegram.proxyEnabled,
       https: config.server.https.enabled
@@ -54,7 +60,7 @@ function createApp(config) {
     res.sendFile(indexPath);
   });
 
-  return {app, relay, publicDirectory};
+  return {app, auth, relay, publicDirectory};
 }
 
 function createServer(config, app) {
@@ -70,14 +76,15 @@ function createServer(config, app) {
 
 function start() {
   const config = loadConfig();
-  const {app, relay, publicDirectory} = createApp(config);
+  const {app, auth, relay, publicDirectory} = createApp(config);
   const server = createServer(config, app);
-  relay.attachWebSocket(server);
+  relay.attachWebSocket(server, auth.authorizeUpgrade);
 
   server.listen(config.server.port, config.server.host, () => {
     const protocol = config.server.https.enabled ? 'https' : 'http';
     console.log(`Telegram Web K listening on ${protocol}://${config.server.host}:${config.server.port}`);
     console.log('Static files:', publicDirectory);
+    console.log('HTTP authentication:', config.auth.enabled ? 'enabled' : 'disabled');
     console.log('Telegram upstream HTTP proxy:', config.telegram.proxyEnabled ? 'enabled' : 'disabled (direct server egress)');
   });
 
