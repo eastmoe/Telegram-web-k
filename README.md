@@ -78,17 +78,19 @@ same MTProto relay.
 
 ### Running in docker
 
-#### Developing: 
-* Install dependencies `docker-compose up tweb.dependencies`.
-* Run develop container `docker-compose up tweb.develop `.
-* Open http://localhost:8080/ in your browser. 
+Only `tweb.production` is enabled. The old dependency and development services
+remain commented out in `docker-compose.yaml` for reference.
 
-#### Production:
 The production service is configured directly in `docker-compose.yaml`; it no
 longer requires a `config.json` bind mount. The available settings are:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `TWEB_PORT` | `8080` | Published host port and container listen port. Use `443` for standard direct HTTPS. |
+| `SERVER_HTTPS_ENABLED` | `false` | Serve HTTPS directly from the Node server. Leave disabled behind a TLS-terminating reverse proxy. |
+| `TLS_CERTS_HOST_DIR` | `./certs` | Host directory mounted read-only at `/app/certs`. |
+| `SERVER_HTTPS_KEY_FILE` | `/app/certs/server-key.pem` | Private-key path inside the container. |
+| `SERVER_HTTPS_CERT_FILE` | `/app/certs/server-cert.pem` | Certificate/full-chain path inside the container. |
 | `TELEGRAM_PROXY_ENABLED` | `false` | Enable or disable the upstream HTTP proxy. |
 | `TELEGRAM_HTTP_PROXY` | `http://host.docker.internal:7890` | Proxy URL, with optional URL credentials. |
 | `TELEGRAM_REQUEST_TIMEOUT_MS` | `30000` | Telegram upstream connect/request timeout. |
@@ -99,16 +101,31 @@ You can edit the defaults in `docker-compose.yaml`, or provide deployment
 values through a Compose `.env` file:
 
 ```dotenv
+TWEB_PORT=443
+SERVER_HTTPS_ENABLED=true
+TLS_CERTS_HOST_DIR=./certs
+SERVER_HTTPS_KEY_FILE=/app/certs/privkey.pem
+SERVER_HTTPS_CERT_FILE=/app/certs/fullchain.pem
 TELEGRAM_PROXY_ENABLED=true
 TELEGRAM_HTTP_PROXY=http://host.docker.internal:7890
 TELEGRAM_REQUEST_TIMEOUT_MS=30000
 ```
 
+Place `privkey.pem` and `fullchain.pem` in the host directory selected by
+`TLS_CERTS_HOST_DIR`. The mount is read-only inside the container. For plain
+HTTP local testing, keep `SERVER_HTTPS_ENABLED=false` and `TWEB_PORT=8080`.
+
+No public hostname setting is required. WebK constructs page, API and WebSocket
+URLs from the hostname the browser actually used (`location.host`) and
+same-origin paths. When direct HTTPS is enabled, the mounted certificate still
+needs to cover that public hostname. A reverse proxy must preserve the normal
+Host header, but the Node server does not use it to generate external URLs.
+
 When the proxy runs on the Docker host, use `host.docker.internal` rather than
 `127.0.0.1`, because the latter refers to the container itself.
 
 * Run `docker compose up tweb.production -d` to build and start the WebK server and Telegram relay.
-* Open http://localhost:80/ in your browser.
+* With defaults, open http://localhost:8080/. With direct TLS on port 443, open the configured `https://` hostname.
 
 You can use `docker build -f ./.docker/Dockerfile_production -t {dockerhub-username}/{imageName}:{latest} .` to build your production ready image.
 

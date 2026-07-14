@@ -43,7 +43,10 @@ test('relay paths reject arbitrary hosts and invalid DCs', () => {
 
 test('configuration accepts only HTTP proxy URLs', () => {
   const valid = {
-    server: {port: 8080},
+    server: {
+      port: 8080,
+      https: {enabled: false, keyFile: '', certFile: ''}
+    },
     telegram: {
       proxyEnabled: true,
       httpProxy: 'http://127.0.0.1:7890',
@@ -61,6 +64,10 @@ test('configuration accepts only HTTP proxy URLs', () => {
     ...valid,
     telegram: {...valid.telegram, httpProxy: ''}
   }), /required when the proxy is enabled/);
+  assert.throws(() => validateConfig({
+    ...valid,
+    server: {...valid.server, https: {enabled: true, keyFile: '', certFile: ''}}
+  }), /required when HTTPS is enabled/);
 });
 
 test('proxy environment switch accepts common boolean values', () => {

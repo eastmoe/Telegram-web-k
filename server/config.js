@@ -51,6 +51,14 @@ function validateConfig(config) {
     throw new Error('config.server.port must be an integer between 1 and 65535');
   }
 
+  if(typeof(config.server.https?.enabled) !== 'boolean') {
+    throw new Error('config.server.https.enabled must be a boolean');
+  }
+
+  if(config.server.https.enabled && (!config.server.https.keyFile || !config.server.https.certFile)) {
+    throw new Error('config.server.https.keyFile and certFile are required when HTTPS is enabled');
+  }
+
   if(typeof(config.telegram.proxyEnabled) !== 'boolean') {
     throw new Error('config.telegram.proxyEnabled must be a boolean');
   }
@@ -102,6 +110,15 @@ function loadConfig(configPath = process.env.TWEB_CONFIG || path.join(process.cw
   }
   if(process.env.HOST) {
     config.server.host = process.env.HOST;
+  }
+  if(process.env.SERVER_HTTPS_ENABLED !== undefined) {
+    config.server.https.enabled = parseBoolean(process.env.SERVER_HTTPS_ENABLED, 'SERVER_HTTPS_ENABLED');
+  }
+  if(process.env.SERVER_HTTPS_KEY_FILE !== undefined) {
+    config.server.https.keyFile = process.env.SERVER_HTTPS_KEY_FILE;
+  }
+  if(process.env.SERVER_HTTPS_CERT_FILE !== undefined) {
+    config.server.https.certFile = process.env.SERVER_HTTPS_CERT_FILE;
   }
 
   return validateConfig(config);

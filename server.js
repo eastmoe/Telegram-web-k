@@ -34,7 +34,8 @@ function createApp(config) {
     res.json({
       ok: true,
       telegramRelay: true,
-      upstreamHttpProxy: config.telegram.proxyEnabled
+      upstreamHttpProxy: config.telegram.proxyEnabled,
+      https: config.server.https.enabled
     });
   });
 

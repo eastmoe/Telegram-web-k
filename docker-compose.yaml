@@ -1,24 +1,25 @@
 version: "3.8"
 services:
-  tweb.dependencies:
-    container_name: tweb.dependencies
-    build:
-      context: .
-      dockerfile: .docker/Dockerfile_dependencies
-    volumes:
-      - "./node_modules:/app/node_modules"
-    command: pnpm install
+  # Legacy dependency and development containers are intentionally disabled.
+  # tweb.dependencies:
+  #   container_name: tweb.dependencies
+  #   build:
+  #     context: .
+  #     dockerfile: .docker/Dockerfile_dependencies
+  #   volumes:
+  #     - "./node_modules:/app/node_modules"
+  #   command: pnpm install
 
-  tweb.develop:
-    container_name: tweb.develop
-    build:
-      context: .
-      dockerfile: .docker/Dockerfile_develop
-    volumes:
-      - "./:/app"
-    ports:
-      - 8080:8080
-    command: pnpm start-in-docker
+  # tweb.develop:
+  #   container_name: tweb.develop
+  #   build:
+  #     context: .
+  #     dockerfile: .docker/Dockerfile_develop
+  #   volumes:
+  #     - "./:/app"
+  #   ports:
+  #     - 8080:8080
+  #   command: pnpm start-in-docker
 
   tweb.production:
     container_name: tweb.production
@@ -26,10 +27,15 @@ services:
       context: .
       dockerfile: .docker/Dockerfile_production
     ports:
-      - 80:80
+      - "${TWEB_PORT:-8080}:${TWEB_PORT:-8080}"
     environment:
       HOST: "0.0.0.0"
-      PORT: "80"
+      PORT: "${TWEB_PORT:-8080}"
+      # Direct TLS can be enabled here. If TLS is terminated by a reverse
+      # proxy, leave this false and proxy to the container over HTTP.
+      SERVER_HTTPS_ENABLED: "${SERVER_HTTPS_ENABLED:-false}"
+      SERVER_HTTPS_KEY_FILE: "${SERVER_HTTPS_KEY_FILE:-/app/certs/server-key.pem}"
+      SERVER_HTTPS_CERT_FILE: "${SERVER_HTTPS_CERT_FILE:-/app/certs/server-cert.pem}"
       # Set to "true" to send every Telegram HTTP/WebSocket relay connection
       # through TELEGRAM_HTTP_PROXY. When disabled, the address is ignored.
       TELEGRAM_PROXY_ENABLED: "${TELEGRAM_PROXY_ENABLED:-false}"
@@ -39,5 +45,9 @@ services:
       TELEGRAM_REQUEST_TIMEOUT_MS: "${TELEGRAM_REQUEST_TIMEOUT_MS:-30000}"
       TELEGRAM_MAX_REQUEST_BYTES: "${TELEGRAM_MAX_REQUEST_BYTES:-67108864}"
       TELEGRAM_MAX_BUFFERED_WEBSOCKET_BYTES: "${TELEGRAM_MAX_BUFFERED_WEBSOCKET_BYTES:-8388608}"
+    volumes:
+      # Mount a host certificate directory read-only. It may stay empty while
+      # SERVER_HTTPS_ENABLED is false.
+      - "${TLS_CERTS_HOST_DIR:-./certs}:/app/certs:ro"
     extra_hosts:
       - "host.docker.internal:host-gateway"
