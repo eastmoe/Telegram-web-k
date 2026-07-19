@@ -21,6 +21,7 @@ import MTProtoMessagePort, {ThreadedWorkerEvents} from '@lib/mainWorker/mainMess
 import cryptoMessagePort from '@lib/crypto/cryptoMessagePort';
 import SuperMessagePort from '@lib/superMessagePort';
 import IS_SHARED_WORKER_SUPPORTED from '@environment/sharedWorkerSupport';
+import {IS_SAFARI} from '@environment/userAgent';
 import toggleStorages from '@helpers/toggleStorages';
 import idleController from '@helpers/idleController';
 import ServiceMessagePort from '@lib/serviceWorker/serviceMessagePort';
@@ -843,7 +844,10 @@ class ApiManagerProxy extends MTProtoMessagePort {
       superMessagePort,
       type
     );
-    const constructor = IS_SHARED_WORKER_SUPPORTED ? SharedWorker : Worker;
+    // Safari silently wedges a {type:'module'} SharedWorker used for rlottie sticker decoding:
+    // frames never arrive, no error is thrown, and every sticker canvas stays blank (never appended).
+    // Keep MTProto/crypto on the shared worker, but hand the rlottie pool per-tab dedicated Workers.
+    const constructor = IS_SHARED_WORKER_SUPPORTED && !(IS_SAFARI && type === 'rlottie') ? SharedWorker : Worker;
 
     superMessagePort.addEventListener('port', (payload, source, event) => {
       this.invokeVoid('threadedPort', type, undefined, [event.ports[0]]);
@@ -1166,14 +1170,15 @@ class ApiManagerProxy extends MTProtoMessagePort {
     }
 
     const promise = saved[size] = rootScope.managers.appAvatarsManager.loadAvatar(peerId, photo, size);
-    // Don't permanently cache a failed (undefined) video load — allow a retry.
+    // Don't permanently cache a failed load — allow a retry: any rejection
+    // (e.g. FILE_ID_INVALID for a stale photo_id), or a video load that
+    // resolved to nothing.
     // (Successful loads overwrite this entry with the URL via the 'mirror' message.)
-    if(size === 'photo_video' || size === 'photo_video_full') {
-      Promise.resolve(promise).then(
-        (url) => { if(!url && saved[size] === promise) delete saved[size]; },
-        () => { if(saved[size] === promise) delete saved[size]; }
-      );
-    }
+    const isVideo = size === 'photo_video' || size === 'photo_video_full';
+    Promise.resolve(promise).then(
+      (url) => { if(isVideo && !url && saved[size] === promise) delete saved[size]; },
+      () => { if(saved[size] === promise) delete saved[size]; }
+    );
     return promise;
   }
 

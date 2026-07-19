@@ -551,6 +551,12 @@ export default class ChatBubbles {
   private unreadedContent: Map<HTMLElement, number> = new Map();
   private unreadedSeen: Set<number> = new Set();
   private unreadedContentSeen: Set<number> = new Set();
+  // The chat the unreaded mids belong to. `this.chat.peerId` flips synchronously at the start of
+  // `Chat.setPeer` while `cleanup()` (which clears the unreaded sets) only runs several awaits
+  // later, so anything deferred (focus promise, late IntersectionObserver entries) must compare
+  // against this snapshot instead of trusting `this.chat` — otherwise mids collected in the old
+  // chat get read against the new peer, poisoning its historyStorage with foreign-namespace mids.
+  private unreadedChat: {peerId: PeerId, threadId: number, monoforumThreadId: PeerId};
   private readPromise: Promise<void>;
   private readContentPromise: Promise<void>;
 
@@ -1764,8 +1770,9 @@ export default class ChatBubbles {
     };
 
     this.listenerSetter.add(container)('wheel', (e: WheelEvent) => {
-      // pinch-zoom / momentum with a modifier held — not a reply gesture
-      if(e.ctrlKey || e.metaKey) {
+      // pinch-zoom (ctrl/meta) or a mouse wheel scrolling sideways (holding shift maps the wheel's
+      // deltaY onto deltaX) — a modifier is held, so this is not a trackpad reply swipe
+      if(e.ctrlKey || e.metaKey || e.shiftKey) {
         return;
       }
 
@@ -2330,29 +2337,50 @@ export default class ChatBubbles {
       return;
     }
 
-    this.observer.unobserve(entry.target, this.guestChatHintObserverCallback);
+    const bubble = entry.target as HTMLElement;
 
     if(this.chat.isPreview || this.guestChatHintShown) { // once per chat-open (iOS hasDisplayedGuestChatMessageTooltip)
+      this.observer.unobserve(bubble, this.guestChatHintObserverCallback);
       return;
     }
 
     const shownTimes = this.chat.appSettings.seenTooltips.guestBotPrivacy || 0; // undefined for pre-existing state
     if(shownTimes >= 2) { // twice total (iOS counter notice)
+      this.observer.unobserve(bubble, this.guestChatHintObserverCallback);
       return;
     }
 
+    // * notch over the bot's name (element = the .peer-title, which hugs its text). fall back to the
+    // * bubble as the anchor when the name is hidden (a grouped, non-first guest bubble)
+    const nameNode = bubble.querySelector<HTMLElement>('.name .peer-title');
+    const anchor = nameNode?.offsetParent ? nameNode : bubble;
+
+    // * the observer's root is the whole scroll container, so this fires as soon as ANY pixel of the
+    // * bubble intersects — which can be while the name is still under the floating topbar or below the
+    // * fold, dropping the (upward) tooltip off-screen. Wait until the name has cleared the topbar with
+    // * room above it and sits inside the viewport; keep the bubble observed so a later scroll that
+    // * brings it fully into view re-triggers this (the counter isn't spent until we actually show).
+    const scrollRect = this.scrollable.container.getBoundingClientRect();
+    const topbarBottom = this.chat.topbar?.container.getBoundingClientRect().bottom ?? scrollRect.top;
+    const visibleTop = Math.max(scrollRect.top, topbarBottom);
+    const anchorRect = anchor.getBoundingClientRect();
+    const roomForTooltip = 48; // tooltip height + notch + gap — don't show it half-clipped by the topbar
+    if(anchorRect.top - roomForTooltip < visibleTop || anchorRect.top > scrollRect.bottom) {
+      return;
+    }
+
+    this.observer.unobserve(bubble, this.guestChatHintObserverCallback);
     this.guestChatHintShown = true;
     setAppSettings('seenTooltips', 'guestBotPrivacy', shownTimes + 1);
 
-    // * notch over the bot's name (element = the .peer-title, which hugs its text), body over the bubble
-    // * (container = the bubble clamps the body's width/position). fall back to the bubble as the notch
-    // * anchor too when the name is hidden (a grouped, non-first guest bubble)
-    const bubble = entry.target as HTMLElement;
-    const nameNode = bubble.querySelector<HTMLElement>('.name .peer-title');
-
+    // * mount inside the bubble and position absolutely, so the hint scrolls with the message and is
+    // * clipped by the chat viewport instead of floating over the topbar (container = bubble clamps the
+    // * body's width/position)
     showTooltip({
-      element: nameNode?.offsetParent ? nameNode : bubble,
+      element: anchor,
       container: bubble,
+      mountOn: bubble,
+      absolute: true,
       vertical: 'top',
       textElement: i18n('BotCantReadChatTooltip'),
       paddingX: 8,
@@ -2893,6 +2921,18 @@ export default class ChatBubbles {
     this.readUnreaded(type);
   }
 
+  // Whether `this.chat` has moved on from the chat the unreaded mids were collected in. True in
+  // the window between the synchronous peer flip in `Chat.setPeer` and `cleanup()` — the unreaded
+  // sets still hold the previous chat's mids there and must not be read against the new peer.
+  private isUnreadedChatChanged() {
+    const {unreadedChat, chat} = this;
+    return unreadedChat && (
+      unreadedChat.peerId !== chat.peerId ||
+      unreadedChat.threadId !== chat.threadId ||
+      unreadedChat.monoforumThreadId !== chat.monoforumThreadId
+    );
+  }
+
   private readUnreaded(type: 'history' | 'content') {
     if(this.chat.isPreview) return;
     const readPromiseKey = type === 'history' ? 'readPromise' : 'readContentPromise';
@@ -2902,7 +2942,9 @@ export default class ChatBubbles {
 
     const middleware = this.getMiddleware();
     this[readPromiseKey] = idleController.getFocusPromise().then(async() => {
-      if(!middleware()) return;
+      // like a failed middleware, a stale unreadedChat leaves `this[readPromiseKey]` latched —
+      // `cleanup()` is what resets both the promise and the sets
+      if(!middleware() || this.isUnreadedChatChanged()) return;
       const {peerId, threadId, monoforumThreadId} = this.chat;
 
       let callback: () => Promise<any>;
@@ -4935,6 +4977,7 @@ export default class ChatBubbles {
       this.unreadedContent.clear();
       this.unreadedSeen.clear();
       this.unreadedContentSeen.clear();
+      this.unreadedChat = undefined;
       this.readPromise = undefined;
       this.readContentPromise = undefined;
 
@@ -6299,6 +6342,10 @@ export default class ChatBubbles {
   private setUnreadObserver(type: 'history' | 'content', bubble: HTMLElement, mid?: number, element: HTMLElement = bubble) {
     if(this.chat.isPreview) return;
     mid ??= (bubble as any).maxBubbleMid;
+    // registration always happens while rendering the current chat, so this snapshot is the
+    // authoritative owner of every mid in the unreaded maps/sets
+    const {peerId, threadId, monoforumThreadId} = this.chat;
+    this.unreadedChat = {peerId, threadId, monoforumThreadId};
     // this.log('not our message', message, message.pFlags.unread);
     this.observer.observe(element, type === 'history' ? this.unreadedObserverCallback : this.unreadedContentObserverCallback);
     (type === 'history' ? this.unreaded : this.unreadedContent).set(element, mid);
@@ -7435,7 +7482,8 @@ export default class ChatBubbles {
         props: {
           message: message as Message.message,
           richMessage,
-          page: richMessagePage
+          page: richMessagePage,
+          scrollToElement: (element: HTMLElement) => this.scrollToBubble(element, 'start')
         },
         middleware,
         HotReloadGuard: SolidJSHotReloadGuardProvider
